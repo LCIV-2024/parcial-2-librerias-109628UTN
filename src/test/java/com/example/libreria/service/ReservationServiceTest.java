@@ -78,22 +78,86 @@ class ReservationServiceTest {
     
     @Test
     void testCreateReservation_Success() {
-        // TODO: Implementar el test de creación de reserva exitosa
+        ReservationRequestDTO requestDTO = new ReservationRequestDTO();
+        requestDTO.setUserId(1L);
+        requestDTO.setBookExternalId(258027L);
+        requestDTO.setRentalDays(7);
+        requestDTO.setStartDate(LocalDate.now());
+        
+        when(userService.getUserEntity(1L)).thenReturn(testUser);
+        when(bookRepository.findByExternalId(258027L)).thenReturn(Optional.of(testBook));
+        when(reservationRepository.save(any(Reservation.class))).thenReturn(testReservation);
+        
+        ReservationResponseDTO result = reservationService.createReservation(requestDTO);
+        
+        assertNotNull(result);
+        assertEquals(testReservation.getId(), result.getId());
+        verify(bookService).decreaseAvailableQuantity(258027L);
+        verify(reservationRepository).save(any(Reservation.class));
     }
     
     @Test
     void testCreateReservation_BookNotAvailable() {
-        // TODO: Implementar el test de creación de reserva cuando el libro no está disponible
+        ReservationRequestDTO requestDTO = new ReservationRequestDTO();
+        requestDTO.setUserId(1L);
+        requestDTO.setBookExternalId(258027L);
+        requestDTO.setRentalDays(7);
+        requestDTO.setStartDate(LocalDate.now());
+        
+        testBook.setAvailableQuantity(0);
+        
+        when(userService.getUserEntity(1L)).thenReturn(testUser);
+        when(bookRepository.findByExternalId(258027L)).thenReturn(Optional.of(testBook));
+        
+        assertThrows(RuntimeException.class, () -> {
+            reservationService.createReservation(requestDTO);
+        });
+        
+        verify(bookService, never()).decreaseAvailableQuantity(anyLong());
+        verify(reservationRepository, never()).save(any(Reservation.class));
     }
     
     @Test
     void testReturnBook_OnTime() {
-        // TODO: Implementar el test de devolución de libro en tiempo
+        LocalDate returnDate = testReservation.getExpectedReturnDate();
+        ReturnBookRequestDTO returnRequest = new ReturnBookRequestDTO();
+        returnRequest.setReturnDate(returnDate);
+        
+        Reservation activeReservation = new Reservation();
+        activeReservation.setId(1L);
+        activeReservation.setUser(testUser);
+        activeReservation.setBook(testBook);
+        activeReservation.setExpectedReturnDate(LocalDate.now().plusDays(7));
+        activeReservation.setStatus(Reservation.ReservationStatus.ACTIVE);
+        
+        when(reservationRepository.findById(1L)).thenReturn(Optional.of(activeReservation));
+        when(reservationRepository.save(any(Reservation.class))).thenReturn(activeReservation);
+        
+        ReservationResponseDTO result = reservationService.returnBook(1L, returnRequest);
+        
+        assertNotNull(result);
+        verify(bookService).increaseAvailableQuantity(258027L);
     }
     
     @Test
     void testReturnBook_Overdue() {
-        // TODO: Implementar el test de devolución de libro con retraso
+        ReturnBookRequestDTO returnRequest = new ReturnBookRequestDTO();
+        returnRequest.setReturnDate(LocalDate.now().plusDays(10));
+        
+        Reservation activeReservation = new Reservation();
+        activeReservation.setId(1L);
+        activeReservation.setUser(testUser);
+        activeReservation.setBook(testBook);
+        activeReservation.setExpectedReturnDate(LocalDate.now().plusDays(7));
+        activeReservation.setStatus(Reservation.ReservationStatus.ACTIVE);
+        
+        when(reservationRepository.findById(1L)).thenReturn(Optional.of(activeReservation));
+        when(reservationRepository.save(any(Reservation.class))).thenReturn(activeReservation);
+        
+        ReservationResponseDTO result = reservationService.returnBook(1L, returnRequest);
+        
+        assertNotNull(result);
+        verify(bookService).increaseAvailableQuantity(258027L);
     }
     
     @Test
@@ -110,6 +174,15 @@ class ReservationServiceTest {
     void testGetAllReservations() {
         Reservation reservation2 = new Reservation();
         reservation2.setId(2L);
+        reservation2.setUser(testUser);
+        reservation2.setBook(testBook);
+        reservation2.setRentalDays(5);
+        reservation2.setStartDate(LocalDate.now());
+        reservation2.setExpectedReturnDate(LocalDate.now().plusDays(5));
+        reservation2.setDailyRate(new BigDecimal("15.99"));
+        reservation2.setTotalFee(new BigDecimal("79.95"));
+        reservation2.setStatus(Reservation.ReservationStatus.ACTIVE);
+        reservation2.setCreatedAt(LocalDateTime.now());
         
         when(reservationRepository.findAll()).thenReturn(Arrays.asList(testReservation, reservation2));
         
